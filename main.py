@@ -23,11 +23,17 @@ OPENAI_CHAT_MODEL = None
 OPENAI_SYSTEM_PROMPT = None
 
 
-MENU_BUTTON = "Начать диалог"
+MENU_BUTTON_START = "Начать диалог"
+MENU_BUTTON_RECORD = "Записать запрос"
 
 
 def build_menu() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup([[MENU_BUTTON]], resize_keyboard=True)
+    return ReplyKeyboardMarkup(
+        [
+            [MENU_BUTTON_START, MENU_BUTTON_RECORD],
+        ],
+        resize_keyboard=True,
+    )
 
 
 def load_config() -> None:
@@ -64,7 +70,7 @@ async def show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def handle_menu_action(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message:
         await update.message.reply_text(
-            "Готов начать диалог. Отправьте голосовое сообщение.",
+            "Готов записать запрос. Отправьте голосовое сообщение.",
             reply_markup=build_menu(),
         )
 
@@ -111,9 +117,13 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     await update.message.reply_text(
         "Транскрипция:\n"
-        f"{transcript_text}\n\n"
+        f"{transcript_text}",
+        reply_markup=build_menu(),
+    )
+    await update.message.reply_text(
         "Ответ ИИ:\n"
-        f"{assistant_reply}"
+        f"{assistant_reply}",
+        reply_markup=build_menu(),
     )
 
 
@@ -141,7 +151,13 @@ def main() -> None:
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("menu", show_menu))
-    application.add_handler(MessageHandler(filters.TEXT & filters.Regex(f"^{MENU_BUTTON}$"), handle_menu_action))
+    application.add_handler(
+        MessageHandler(
+            filters.TEXT
+            & filters.Regex(f"^({MENU_BUTTON_START}|{MENU_BUTTON_RECORD})$"),
+            handle_menu_action,
+        )
+    )
     application.add_handler(MessageHandler(filters.VOICE, handle_voice))
 
     application.run_polling()
