@@ -120,8 +120,10 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 def validate_env() -> None:
     if not TELEGRAM_BOT_TOKEN:
         message = (
-            "Не задан TELEGRAM_BOT_TOKEN. "
-            "Добавьте его в .env или экспортируйте переменную окружения."
+            "Не задан TELEGRAM_BOT_TOKEN.\n"
+            "1) Скопируйте пример: cp .env.example .env\n"
+            "2) Укажите TELEGRAM_BOT_TOKEN в .env\n"
+            "Или экспортируйте переменную окружения перед запуском."
         )
         logger.error(message)
         raise SystemExit(message)
