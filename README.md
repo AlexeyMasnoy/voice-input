@@ -20,17 +20,6 @@ pip install -r requirements.txt
 python main.py
 ```
 
-## Запуск в Docker
-
-1. Скопируйте `.env.example` в `.env` и заполните токены.
-2. Запустите контейнер:
-
-```bash
-docker compose up --build
-```
-
-Все необходимые файлы для запуска уже находятся в репозитории (Dockerfile, docker-compose.yml, .env.example).
-
 ## Меню
 
 Используйте команду `/menu` или кнопку **Начать диалог**, чтобы получить подсказку и перейти к отправке голосовых сообщений.
