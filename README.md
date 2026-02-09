@@ -12,7 +12,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-2. Настройте переменные окружения (пример в `.env.example`).
+2. Настройте переменные окружения (пример в `.env.example`). Файл `.env` будет загружен автоматически.
 
 3. Запустите бота:
 

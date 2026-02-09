@@ -3,6 +3,7 @@ import os
 import tempfile
 from pathlib import Path
 
+from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from telegram import ReplyKeyboardMarkup, Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
@@ -15,14 +16,11 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_AUDIO_MODEL = os.getenv("OPENAI_AUDIO_MODEL", "gpt-4o-mini-transcribe")
-OPENAI_CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
-OPENAI_SYSTEM_PROMPT = os.getenv(
-    "OPENAI_SYSTEM_PROMPT",
-    "Ты полезный ассистент, который помогает пользователю.",
-)
+TELEGRAM_BOT_TOKEN = None
+OPENAI_API_KEY = None
+OPENAI_AUDIO_MODEL = None
+OPENAI_CHAT_MODEL = None
+OPENAI_SYSTEM_PROMPT = None
 
 
 MENU_BUTTON = "Начать диалог"
@@ -30,6 +28,21 @@ MENU_BUTTON = "Начать диалог"
 
 def build_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup([[MENU_BUTTON]], resize_keyboard=True)
+
+
+def load_config() -> None:
+    load_dotenv()
+
+    global TELEGRAM_BOT_TOKEN, OPENAI_API_KEY, OPENAI_AUDIO_MODEL, OPENAI_CHAT_MODEL, OPENAI_SYSTEM_PROMPT
+
+    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    OPENAI_AUDIO_MODEL = os.getenv("OPENAI_AUDIO_MODEL", "gpt-4o-mini-transcribe")
+    OPENAI_CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
+    OPENAI_SYSTEM_PROMPT = os.getenv(
+        "OPENAI_SYSTEM_PROMPT",
+        "Ты полезный ассистент, который помогает пользователю.",
+    )
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -106,10 +119,16 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 def validate_env() -> None:
     if not TELEGRAM_BOT_TOKEN:
-        raise RuntimeError("TELEGRAM_BOT_TOKEN is required")
+        message = (
+            "Не задан TELEGRAM_BOT_TOKEN. "
+            "Добавьте его в .env или экспортируйте переменную окружения."
+        )
+        logger.error(message)
+        raise SystemExit(message)
 
 
 def main() -> None:
+    load_config()
     validate_env()
 
     application = (
