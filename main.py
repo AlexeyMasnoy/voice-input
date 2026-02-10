@@ -88,43 +88,51 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        audio_path = Path(temp_dir) / "voice.ogg"
-        await file.download_to_drive(custom_path=str(audio_path))
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            audio_path = Path(temp_dir) / "voice.ogg"
+            await file.download_to_drive(custom_path=str(audio_path))
 
-        with audio_path.open("rb") as audio_file:
-            transcription = await client.audio.transcriptions.create(
-                model=OPENAI_AUDIO_MODEL,
-                file=audio_file,
-            )
+            with audio_path.open("rb") as audio_file:
+                transcription = await client.audio.transcriptions.create(
+                    model=OPENAI_AUDIO_MODEL,
+                    file=audio_file,
+                )
 
-    transcript_text = (transcription.text or "").strip()
-    if not transcript_text:
-        await update.message.reply_text("Не удалось распознать текст из голосового сообщения.")
-        return
+        transcript_text = (transcription.text or "").strip()
+        if not transcript_text:
+            await update.message.reply_text("Не удалось распознать текст из голосового сообщения.")
+            return
 
-    completion = await client.chat.completions.create(
-        model=OPENAI_CHAT_MODEL,
-        messages=[
-            {"role": "system", "content": OPENAI_SYSTEM_PROMPT},
-            {"role": "user", "content": transcript_text},
-        ],
-    )
+        completion = await client.chat.completions.create(
+            model=OPENAI_CHAT_MODEL,
+            messages=[
+                {"role": "system", "content": OPENAI_SYSTEM_PROMPT},
+                {"role": "user", "content": transcript_text},
+            ],
+        )
 
-    assistant_reply = ""
-    if completion.choices:
-        assistant_reply = completion.choices[0].message.content or ""
+        assistant_reply = ""
+        if completion.choices:
+            assistant_reply = completion.choices[0].message.content or ""
 
-    await update.message.reply_text(
-        "Транскрипция:\n"
-        f"{transcript_text}",
-        reply_markup=build_menu(),
-    )
-    await update.message.reply_text(
-        "Ответ ИИ:\n"
-        f"{assistant_reply}",
-        reply_markup=build_menu(),
-    )
+        await update.message.reply_text(
+            "Транскрипция:\n"
+            f"{transcript_text}",
+            reply_markup=build_menu(),
+        )
+        await update.message.reply_text(
+            "Ответ ИИ:\n"
+            f"{assistant_reply}",
+            reply_markup=build_menu(),
+        )
+    except Exception:
+        logger.exception("OpenAI API request failed")
+        await update.message.reply_text(
+            "Не удалось обратиться к OpenAI API. "
+            "Проверьте OPENAI_API_KEY и наличие средств/кредитов в аккаунте.",
+            reply_markup=build_menu(),
+        )
 
 
 def validate_env() -> None:
