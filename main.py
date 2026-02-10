@@ -4,7 +4,8 @@ import tempfile
 from pathlib import Path
 
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
+from google import genai
+from google.genai import types
 from telegram import ReplyKeyboardMarkup, Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
@@ -17,10 +18,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 TELEGRAM_BOT_TOKEN = None
-OPENAI_API_KEY = None
-OPENAI_AUDIO_MODEL = None
-OPENAI_CHAT_MODEL = None
-OPENAI_SYSTEM_PROMPT = None
+GEMINI_API_KEY = None
+GEMINI_MODEL = None
+GEMINI_SYSTEM_PROMPT = None
 
 
 MENU_BUTTON_START = "Начать диалог"
@@ -39,14 +39,13 @@ def build_menu() -> ReplyKeyboardMarkup:
 def load_config() -> None:
     load_dotenv()
 
-    global TELEGRAM_BOT_TOKEN, OPENAI_API_KEY, OPENAI_AUDIO_MODEL, OPENAI_CHAT_MODEL, OPENAI_SYSTEM_PROMPT
+    global TELEGRAM_BOT_TOKEN, GEMINI_API_KEY, GEMINI_MODEL, GEMINI_SYSTEM_PROMPT
 
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    OPENAI_AUDIO_MODEL = os.getenv("OPENAI_AUDIO_MODEL", "gpt-4o-mini-transcribe")
-    OPENAI_CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
-    OPENAI_SYSTEM_PROMPT = os.getenv(
-        "OPENAI_SYSTEM_PROMPT",
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+    GEMINI_SYSTEM_PROMPT = os.getenv(
+        "GEMINI_SYSTEM_PROMPT",
         "Ты полезный ассистент, который помогает пользователю.",
     )
 
@@ -75,46 +74,52 @@ async def handle_menu_action(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
 
 
+def transcribe_audio(client: genai.Client, audio_bytes: bytes) -> str:
+    response = client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=[
+            "Сделай точную транскрипцию голосового сообщения. Верни только текст транскрипции без пояснений.",
+            types.Part.from_bytes(data=audio_bytes, mime_type="audio/ogg"),
+        ],
+    )
+    return (response.text or "").strip()
+
+
+def process_text(client: genai.Client, transcript_text: str) -> str:
+    response = client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=[
+            f"{GEMINI_SYSTEM_PROMPT}\n\nЗапрос пользователя:\n{transcript_text}",
+        ],
+    )
+    return (response.text or "").strip()
+
+
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.message or not update.message.voice:
         return
 
-    if not OPENAI_API_KEY:
-        await update.message.reply_text("Не задан OPENAI_API_KEY.")
+    if not GEMINI_API_KEY:
+        await update.message.reply_text("Не задан GEMINI_API_KEY.")
         return
 
     voice = update.message.voice
     file = await context.bot.get_file(voice.file_id)
 
-    client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+    client = genai.Client(api_key=GEMINI_API_KEY)
 
     try:
         with tempfile.TemporaryDirectory() as temp_dir:
             audio_path = Path(temp_dir) / "voice.ogg"
             await file.download_to_drive(custom_path=str(audio_path))
+            audio_bytes = audio_path.read_bytes()
 
-            with audio_path.open("rb") as audio_file:
-                transcription = await client.audio.transcriptions.create(
-                    model=OPENAI_AUDIO_MODEL,
-                    file=audio_file,
-                )
-
-        transcript_text = (transcription.text or "").strip()
+        transcript_text = transcribe_audio(client, audio_bytes)
         if not transcript_text:
             await update.message.reply_text("Не удалось распознать текст из голосового сообщения.")
             return
 
-        completion = await client.chat.completions.create(
-            model=OPENAI_CHAT_MODEL,
-            messages=[
-                {"role": "system", "content": OPENAI_SYSTEM_PROMPT},
-                {"role": "user", "content": transcript_text},
-            ],
-        )
-
-        assistant_reply = ""
-        if completion.choices:
-            assistant_reply = completion.choices[0].message.content or ""
+        assistant_reply = process_text(client, transcript_text)
 
         await update.message.reply_text(
             "Транскрипция:\n"
@@ -127,10 +132,10 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             reply_markup=build_menu(),
         )
     except Exception:
-        logger.exception("OpenAI API request failed")
+        logger.exception("Gemini API request failed")
         await update.message.reply_text(
-            "Не удалось обратиться к OpenAI API. "
-            "Проверьте OPENAI_API_KEY и наличие средств/кредитов в аккаунте.",
+            "Не удалось обратиться к Gemini API. "
+            "Проверьте GEMINI_API_KEY и доступ к Gemini API в аккаунте Google AI Studio.",
             reply_markup=build_menu(),
         )
 
